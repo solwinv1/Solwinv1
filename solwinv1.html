@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solar and Wind Monitoring</title>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Google Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-app-compat.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-database-compat.min.js"></script>
+    
+    <style>
+        :root {
+            --primary-color: #4CAF50;
+            --secondary-color: #03A9F4;
+            --warning-color: #FF6F61;
+            --background-color: #f4f4f4;
+            --text-color: #333;
+            --font-family: 'Poppins', sans-serif;
+        }
+
+        body {
+            font-family: var(--font-family);
+            margin: 0;
+            padding: 0;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 1200px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .section {
+            background-color: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .section:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .section h2 {
+            font-size: 24px;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+
+        .section p {
+            font-size: 18px;
+            margin: 5px 0;
+        }
+
+        .section .value {
+            font-size: 36px;
+            font-weight: 600;
+            margin: 10px 0;
+        }
+
+        .btn {
+            margin-top: 15px;
+            padding: 12px 24px;
+            background-color: var(--warning-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.3s ease;
+        }
+
+        .btn:hover {
+            background-color: #E65C55;
+        }
+
+        .btn i {
+            margin-right: 8px;
+        }
+
+        /* Specific section colors */
+        .battery {
+            border-top: 5px solid #FFEB3B;
+        }
+
+        .solar {
+            border-top: 5px solid var(--primary-color);
+            color: white;
+            background-color: var(--primary-color);
+        }
+
+        .wind {
+            border-top: 5px solid var(--secondary-color);
+            color: white;
+            background-color: var(--secondary-color);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .section {
+                padding: 15px;
+            }
+
+            .section h2 {
+                font-size: 20px;
+            }
+
+            .section .value {
+                font-size: 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- Battery Monitoring Section -->
+        <div class="section battery">
+            <h2>Battery Voltage</h2>
+            <p>Current Voltage: <span class="value" id="Bat">Loading...</span> V</p>
+        </div>
+
+        <!-- Solar Monitoring Section -->
+        <div class="section solar">
+            <h2>Solar Monitoring</h2>
+            <p>Solar Voltage: <span class="value" id="SolVolt">Loading...</span> V</p>
+            <p>Solar Current: <span class="value" id="SolCurrent">Loading...</span> A</p>
+            <button class="btn" id="solarButton">
+                <i class="material-icons"></i>Turn Off Solar
+            </button>
+        </div>
+
+        <!-- Wind Monitoring Section -->
+        <div class="section wind">
+            <h2>Wind Monitoring</h2>
+            <p>Wind Voltage: <span class="value" id="WindVolt">Loading...</span> V</p>
+            <p>Wind Current: <span class="value" id="WindCurrent">Loading...</span> A</p>
+            <button class="btn" id="windButton">
+                <i class="material-icons"></i>Turn Off Wind
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Firebase configuration and functionality
+        const firebaseConfig = {
+            apiKey: "AIzaSyCo-PTm-FmBveqqUaHF0zOf0r30r4azNOE",
+            authDomain: "solwinv1-68380.firebaseapp.com",
+            databaseURL: "https://solwinv1-68380-default-rtdb.firebaseio.com",
+            projectId: "solwinv1-68380",
+            storageBucket: "solwinv1-68380.appspot.com",
+            messagingSenderId: "687098585013",
+            appId: "1:687098585013:web:0afd433f7e1775ed5483fc",
+            measurementId: "G-53T2H66BWB"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // Helper function to check for "nan" or empty values and replace them with 0.0
+        function formatValue(value) {
+            return (!value || value === "nan" || isNaN(value)) ? "0.0" : value;
+        }
+
+        function updateDataDisplay(data) {
+            const solarButtonLabel = document.getElementById('solarButton').textContent;
+            const windButtonLabel = document.getElementById('windButton').textContent;
+
+            document.getElementById('Bat').textContent = formatValue(data.Bat);
+
+            if (solarButtonLabel === 'Turn On Solar') {
+                document.getElementById('SolVolt').textContent = '0.0';
+                document.getElementById('SolCurrent').textContent = '0.0';
+            } else {
+                document.getElementById('SolVolt').textContent = formatValue(data.SolVolt);
+                document.getElementById('SolCurrent').textContent = formatValue(data.SolCurrent);
+            }
+
+            if (windButtonLabel === 'Turn On Wind') {
+                document.getElementById('WindVolt').textContent = '0.0';
+                document.getElementById('WindCurrent').textContent = '0.0';
+            } else {
+                document.getElementById('WindVolt').textContent = formatValue(data.WindVolt);
+                document.getElementById('WindCurrent').textContent = formatValue(data.WindCurrent);
+            }
+        }
+
+        const dataRef = database.ref('/');
+        dataRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                updateDataDisplay(data);
+            } else {
+                updateDataDisplay({
+                    Bat: 0.0,
+                    SolCurrent: 0.0,
+                    SolVolt: 0.0,
+                    WindCurrent: 0.0,
+                    WindVolt: 0.0
+                });
+            }
+        });
+
+        document.getElementById('solarButton').addEventListener('click', function() {
+            const buttonLabel = document.getElementById('solarButton').textContent;
+
+            if (buttonLabel === 'Turn On Solar') {
+                document.getElementById('solarButton').textContent = 'Turn Off Solar';
+                database.ref('/solarControl').set("turn on");
+            } else {
+                document.getElementById('solarButton').textContent = 'Turn On Solar';
+                database.ref('/solarControl').set("turn off");
+            }
+        });
+
+        document.getElementById('windButton').addEventListener('click', function() {
+            const buttonLabel = document.getElementById('windButton').textContent;
+
+            if (buttonLabel === 'Turn On Wind') {
+                document.getElementById('windButton').textContent = 'Turn Off Wind';
+                database.ref('/windControl').set("turn on");
+            } else {
+                document.getElementById('windButton').textContent = 'Turn On Wind';
+                database.ref('/windControl').set("turn off");
+            }
+        });
+    </script>
+
+</body>
+</html>
+
